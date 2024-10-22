@@ -1,0 +1,294 @@
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum UserRole {
+  ADMIN
+  PROSJEKLEDER
+  LEDER
+  USER
+}
+
+model Bedrift {
+  id        String   @id @default(cuid())
+  navn      String
+  orgnr     String   @unique
+  postnr    String
+  sted      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User[]
+  prosjekter Prosjekt[]
+  hmsHandbokUrl String?
+  hmsDokumenter HMSDokument[]
+  skjemaer Skjema[]
+  endringsSkjemaer EndringsSkjema[]
+  sjaSkjemaer SJASkjema[] @relation("BedriftSJASkjema")
+}
+
+model User {
+  id                         String             @id @default(cuid())
+  email                      String             @unique
+  password                   String
+  navn                       String
+  etternavn                  String
+  position                   String?
+  role                       UserRole           @default(ADMIN)
+  createdAt                  DateTime           @default(now())
+  updatedAt                  DateTime           @updatedAt
+  bedrift                    Bedrift            @relation(fields: [bedriftId], references: [id])
+  bedriftId                  String
+  oppgaver                   Oppgave[]
+  emailVerified              DateTime?
+  kommentarer                Kommentar[]  
+  bildeUrl                   String?    
+  timeEntries                TimeEntry[]
+  prosjekter                 Prosjekt[]         @relation("BrukerProsjekter")
+  passwordResetToken         String?
+  passwordResetExpires       DateTime?
+  behandlerSkjemaer          Skjema[]           @relation("BehandlerSkjema")
+  opprettetSkjemaer          Skjema[]           @relation("OpprettetAvSkjema")
+  opprettedeEndringsSkjemaer EndringsSkjema[]   @relation("BrukerOpprettetEndringsSkjema")
+  behandlerEndringsSkjemaer  EndringsSkjema[]   @relation("BehandlerEndringsSkjema")
+  opprettedeSJASkjemaer SJASkjema[] @relation("UserOpprettetSJASkjema")
+  behandlerSJASkjemaer       SJASkjema[]        @relation("BehandlerSJASkjema")
+  type               String   @default("Avvik")
+  bilder      Bilde[]
+  sluttrapport Sluttrapport[]
+  notifications Notification[]
+  }
+
+model VerificationToken {
+  id          String @id @default(cuid())
+  email       String 
+  token       String @unique
+  expires     DateTime
+
+  @@unique([email, token])
+}
+
+model Prosjekt {
+  id            String   @id @default(cuid())
+  navn          String
+  beskrivelse   String?
+  startDato     DateTime
+  sluttDato     DateTime
+  status        ProsjektStatus @default(IKKE_STARTET)
+  bedriftId     String
+  bedrift       Bedrift  @relation(fields: [bedriftId], references: [id])
+  oppgaver      Oppgave[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  timeEntries   TimeEntry[]
+  users         User[]   @relation("BrukerProsjekter")
+  sluttrapport  Sluttrapport[]
+  skjemaer      Skjema[]
+  endringsSkjemaer EndringsSkjema[]
+  sjaSkjemaer   SJASkjema[]
+  bilder        Bilde[]
+}
+
+enum ProsjektStatus {
+  IKKE_STARTET
+  STARTET
+  AVSLUTTET
+}
+
+model Oppgave {
+  id          String      @id @default(uuid())
+  tittel      String
+  beskrivelse String
+  startDato   DateTime
+  sluttDato   DateTime
+  status      OppgaveStatus
+  prioritet   Prioritet
+  estimertTid Float?
+  faktiskTid  Float?
+  filer       Fil[]
+  bruker      User        @relation(fields: [brukerId], references: [id])
+  brukerId    String
+  prosjekt    Prosjekt    @relation(fields: [prosjektId], references: [id])
+  prosjektId  String
+  kommentarer Kommentar[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  timeEntries TimeEntry[]
+  bilder      Bilde[]
+}
+
+enum OppgaveStatus {
+  IKKE_STARTET
+  I_GANG
+  UNDER_REVIEW
+  FULLFORT
+}
+
+enum Prioritet {
+  LAV
+  MEDIUM
+  HOY
+  KRITISK
+}
+
+model Kommentar {
+  id          String    @id @default(uuid())
+  innhold     String
+  opprettetAt DateTime  @default(now())
+  oppgave     Oppgave   @relation(fields: [oppgaveId], references: [id])
+  oppgaveId   String
+  bruker      User      @relation(fields: [brukerId], references: [id])
+  brukerId    String
+}
+
+model Fil {
+  id        String   @id @default(cuid())
+  url       String
+  navn      String
+  type      String   // Ny felt for å skille mellom bilder og andre filer
+  oppgave   Oppgave?  @relation(fields: [oppgaveId], references: [id])
+  oppgaveId String?
+}
+
+model TimeEntry {
+  id          String   @id @default(cuid())
+  date        DateTime
+  hours       Float
+  description String?
+  prosjekt    Prosjekt @relation(fields: [prosjektId], references: [id])
+  prosjektId  String
+  oppgave     Oppgave? @relation(fields: [oppgaveId], references: [id])
+  oppgaveId   String?
+  bruker      User     @relation(fields: [brukerId], references: [id])
+  brukerId    String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expires   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model HMSDokument {
+  id        String   @id @default(cuid())
+  name      String
+  url       String
+  bedrift   Bedrift  @relation(fields: [bedriftId], references: [id])
+  bedriftId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Skjema {
+  id            String   @id @default(cuid())
+  type          String   @default("Avvik")
+  tittel        String
+  innhold       Json
+  solution      String?
+  notes         String?
+  status        String   @default("Ubehandlet")
+  opprettetDato DateTime @default(now())
+  bedrift       Bedrift  @relation(fields: [bedriftId], references: [id])
+  bedriftId     String
+  behandler     User?    @relation("BehandlerSkjema", fields: [behandlerId], references: [id])
+  behandlerId   String?
+  opprettetAv   User     @relation("OpprettetAvSkjema", fields: [opprettetAvId], references: [id])
+  opprettetAvId String
+  prosjekt      Prosjekt @relation(fields: [prosjektId], references: [id])
+  prosjektId    String
+  updatedAt     DateTime   @updatedAt
+  avviksnummer  String     @unique
+}
+
+model EndringsSkjema {
+  id                 String   @id @default(cuid())
+  changeNumber       String 
+  projectId          String
+  projectName        String
+  description        String
+  submittedBy        String
+  implementationDate DateTime
+  followUpPerson     String
+  comments           String?
+  status             String   @default("Ubehandlet")
+  opprettetDato      DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  bedrift            Bedrift  @relation(fields: [bedriftId], references: [id])
+  bedriftId          String
+  isArchived         Boolean  @default(false)
+  solution           String?
+  behandler          User?    @relation("BehandlerEndringsSkjema", fields: [behandlerId], references: [id])
+  behandlerId        String?
+  opprettetAv        User     @relation("BrukerOpprettetEndringsSkjema", fields: [opprettetAvId], references: [id])
+  opprettetAvId      String
+  type               String   @default("Endring")
+  prosjekt           Prosjekt @relation(fields: [prosjektId], references: [id])
+  prosjektId         String
+}
+
+model SJASkjema {
+  id                String   @id @default(uuid())
+  type              String   @default("SJA")
+  jobTitle          String
+  jobLocation       String
+  jobDate           String
+  participants      String
+  jobDescription    String
+  identifiedRisks   String
+  riskMitigation    String
+  responsiblePerson String
+  approvalDate      String?
+  comments          String?
+  status            String   @default("Ubehandlet")
+  opprettetDato     DateTime @default(now())
+  bedrift           Bedrift  @relation("BedriftSJASkjema", fields: [bedriftId], references: [id])
+  bedriftId         String
+  opprettetAv       User     @relation("UserOpprettetSJASkjema", fields: [opprettetAvId], references: [id])
+  opprettetAvId     String
+  behandler         User?    @relation("BehandlerSJASkjema", fields: [behandlerId], references: [id])
+  behandlerId       String?
+  prosjekt          Prosjekt @relation(fields: [prosjektId], references: [id])
+  prosjektId        String
+}
+
+model Bilde {
+  id          String   @id @default(cuid())
+  url         String
+  beskrivelse String?
+  prosjekt    Prosjekt @relation(fields: [prosjektId], references: [id])
+  prosjektId  String
+  oppgave     Oppgave? @relation(fields: [oppgaveId], references: [id])
+  oppgaveId   String?
+  user        User?    @relation(fields: [userId], references: [id])
+  userId      String?
+}
+
+model Sluttrapport {
+  id            String   @id @default(cuid())
+  prosjektId    String
+  prosjekt      Prosjekt @relation(fields: [prosjektId], references: [id])
+  generertDato  DateTime @default(now())
+  pdfUrl        String
+  generertAv    User     @relation(fields: [generertAvId], references: [id])
+  generertAvId  String
+  kommentarer   String?
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  message   String
+  url       String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  read      Boolean  @default(false)
+}
